@@ -17,6 +17,11 @@ public class Task {
         return done;
     }
 
+    public void setTitle(String title) {
+    this.title = title;
+}
+
+
     public void setDone(boolean done) {
         this.done = done;
     }
@@ -25,4 +30,5 @@ public class Task {
     public String toString() {
         return (done ? "[x] " : "[ ] ") + title;
     }
+    
 }

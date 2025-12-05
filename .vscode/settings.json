@@ -1,0 +1,16 @@
+{
+    "java.project.referencedLibraries": [
+        "C:/javafx-sdk-21.0.2/lib/*.jar",
+        "lib/**/*.jar"
+
+    ],
+
+    "java.jdt.ls.vmargs": "--module-path C:/javafx-sdk-21.0.2/lib --add-modules=javafx.controls,javafx.fxml",
+
+    "files.exclude": {
+        "**/.classpath": true,
+        "**/.project": true,
+        "**/.settings": true,
+        "**/.factorypath": true
+    }
+}

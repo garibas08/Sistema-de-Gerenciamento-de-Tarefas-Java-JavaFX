@@ -4,14 +4,18 @@ import app.storage.TaskStorage;
 import app.models.Task;
 
 import java.util.List;
-
+import javafx.animation.FadeTransition;
+import javafx.animation.TranslateTransition;
+import javafx.util.Duration;
+import javafx.animation.FadeTransition;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-
+import javafx.geometry.Bounds;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
+import javafx.scene.layout.HBox;
 
 public class TaskController {
 
@@ -38,7 +42,7 @@ public class TaskController {
     }
 
     // =======================================================
-    //  CELL FACTORY COMPLETA (CHECKBOX + EDIT + DRAG)
+    //  CELL FACTORY COMPLETA (CHECKBOX + EDIT + DRAG START)
     // =======================================================
     private void configureCellFactory() {
 
@@ -50,27 +54,29 @@ public class TaskController {
                 private double pressY;
 
                 {
-                    // Registrar Y ao pressionar
+                    // registrar Y ao pressionar (para distinguir click de drag)
                     setOnMousePressed(e -> pressY = e.getScreenY());
 
-                    // Drag **deve** iniciar aqui
+                    // DRAG_DETECTED para iniciar drag (evita conflito com clicks)
                     setOnDragDetected(e -> {
                         if (getItem() == null) return;
 
+                        // não começar drag se o clique foi no checkbox
                         Node target = e.getPickResult().getIntersectedNode();
-                        if (isNodeOrParentCheckBox(target)) return; // evita drag no checkbox
+                        if (isNodeOrParentCheckBox(target)) {
+                            return;
+                        }
 
-                        // inicia drag somente se houve movimento antes
-                        if (Math.abs(e.getScreenY() - pressY) < 4) return;
-
+                        // Inicia drag (só se tiver havido movimento pregresso)
                         Dragboard db = startDragAndDrop(TransferMode.MOVE);
                         ClipboardContent cc = new ClipboardContent();
                         cc.putString(String.valueOf(getIndex()));
                         db.setContent(cc);
+
                         e.consume();
                     });
 
-                    // Duplo clique para editar
+                    // Duplo clique para editar (não consome eventos simples)
                     setOnMouseClicked(event -> {
                         if (event.getClickCount() == 2 && !isEmpty()) {
                             Task t = getItem();
@@ -91,29 +97,43 @@ public class TaskController {
                 }
 
                 @Override
-                protected void updateItem(Task item, boolean empty) {
-                    super.updateItem(item, empty);
+                protected void updateItem(Task task, boolean empty) {
+                    super.updateItem(task, empty);
 
-                    if (empty || item == null) {
+                    if (empty || task == null) {
+                        setText(null);
                         setGraphic(null);
                         return;
                     }
 
-                    // CheckBox da célula
-                    checkBox.setText(item.getTitle());
-                    checkBox.setSelected(item.isDone());
+                    CheckBox checkBox = new CheckBox();
+                    checkBox.setSelected(task.isDone());
 
-                    // impedir click no checkbox de interferir com drag
-                    checkBox.setOnMousePressed(e -> e.consume());
+                    Label label = new Label(task.getTitle());
+                    label.setStyle(task.isDone()
+                             ? "-fx-text-fill: #777; -fx-text-decoration: line-through;"
+                            : "-fx-text-fill: black;"
+                    );
 
-                    checkBox.setOnAction(e -> {
-                        item.setDone(checkBox.isSelected());
-                        TaskStorage.saveTasks(tasks);
-                        taskListView.refresh();
-                    });
+                    checkBox.setOnAction(evt -> {
+                    task.setDone(checkBox.isSelected());
+                    TaskStorage.saveTasks(tasks);
 
-                    setGraphic(checkBox);
-                }
+                    FadeTransition ft = new FadeTransition(Duration.millis(150), label);
+                    ft.setFromValue(0.3);
+                    ft.setToValue(1.0);
+                    ft.play();
+
+
+                    getListView().refresh();
+
+
+                 });
+
+                HBox box = new HBox(10, checkBox, label);
+                setGraphic(box);
+            }
+
             };
 
             return cell;
@@ -121,35 +141,81 @@ public class TaskController {
     }
 
     // =======================================================
-    // RECEBIMENTO DO DRAG & DROP
+    // RECEBIMENTO DO DRAG & DROP (corrige índices e posicionamento)
     // =======================================================
     private void configureDragReceiver() {
 
+        // aceitar o drag (aceita tanto vindo de fora quanto de dentro da mesma lista)
         taskListView.setOnDragOver(event -> {
-            if (event.getDragboard().hasString())
-                event.acceptTransferModes(TransferMode.MOVE);
-        });
-
-        taskListView.setOnDragDropped(event -> {
             Dragboard db = event.getDragboard();
             if (db.hasString()) {
-
-                int fromIndex = Integer.parseInt(db.getString());
-                Task dragged = tasks.remove(fromIndex);
-
-                int toIndex = taskListView.getSelectionModel().getSelectedIndex();
-                if (toIndex < 0) toIndex = tasks.size();
-
-                tasks.add(toIndex, dragged);
-                TaskStorage.saveTasks(tasks);
-
-                event.setDropCompleted(true);
+                event.acceptTransferModes(TransferMode.MOVE);
             }
+            event.consume();
+        });
+
+        // drop: calcula índice alvo a partir do node sob o mouse e metade da célula
+        taskListView.setOnDragDropped(event -> {
+            Dragboard db = event.getDragboard();
+            boolean success = false;
+
+            if (db.hasString()) {
+                try {
+                    int fromIndex = Integer.parseInt(db.getString());
+                    Node targetNode = event.getPickResult().getIntersectedNode();
+                    ListCell<?> targetCell = findParentListCell(targetNode);
+
+                    int toIndex;
+                    double sceneY = event.getSceneY();
+
+                    if (targetCell != null) {
+                        Bounds cellBounds = targetCell.localToScene(targetCell.getBoundsInLocal());
+                        double midY = cellBounds.getMinY() + cellBounds.getHeight() / 2.0;
+
+                        if (sceneY > midY) {
+                            toIndex = targetCell.getIndex() + 1; // depois da célula
+                        } else {
+                            toIndex = targetCell.getIndex(); // antes da célula
+                        }
+                    } else {
+                        toIndex = tasks.size();
+                    }
+
+                    Task moved = tasks.remove(fromIndex);
+                    if (fromIndex < toIndex) {
+                        toIndex = Math.max(0, toIndex - 1);
+                    }
+
+                    if (toIndex > tasks.size()) toIndex = tasks.size();
+                    if (toIndex < 0) toIndex = 0;
+
+                    tasks.add(toIndex, moved);
+                    taskListView.getSelectionModel().select(toIndex);
+
+                    TaskStorage.saveTasks(tasks);
+                    success = true;
+                } catch (NumberFormatException ex) {
+                    success = false;
+                }
+            }
+
+            event.setDropCompleted(success);
+            event.consume();
         });
     }
 
     // =======================================================
-    // AUXILIAR: identificar se clicou no CheckBox
+    // AUX: sobe a hierarquia até achar ListCell
+    // =======================================================
+    private ListCell<?> findParentListCell(Node node) {
+        while (node != null && !(node instanceof ListCell)) {
+            node = node.getParent();
+        }
+        return (ListCell<?>) node;
+    }
+
+    // =======================================================
+    // AUX: detecta se nó (ou pai) é CheckBox
     // =======================================================
     private boolean isNodeOrParentCheckBox(Node node) {
         while (node != null) {

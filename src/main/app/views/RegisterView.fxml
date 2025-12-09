@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox spacing="10" alignment="CENTER" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="app.controllers.RegisterController"
+      style="-fx-padding: 30;">
+    
+    <Label text="Criar Conta" style="-fx-font-size: 24;" />
+    
+    <TextField fx:id="UsernameField" promptText="Usuário" />
+    <PasswordField fx:id="PasswordField" promptText="Senha" />
+
+    <Button text="Registrar" onAction="#handleRegister" maxWidth="200"/>
+
+    <Hyperlink text="Voltar" onAction="#goBack"/>
+</VBox>

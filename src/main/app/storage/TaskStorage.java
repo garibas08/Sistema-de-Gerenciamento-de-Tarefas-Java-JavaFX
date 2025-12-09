@@ -12,11 +12,20 @@ import app.models.Task;
 
 public class TaskStorage {
 
-    private static final String FILE_PATH = "tasks.json";
+    private static String currentUser = null;
+
+    public static void setCurrentUser(String usuario){
+        currentUser = usuario;
+    }
+
+    private static String getUserTaskFile() {
+        return "tasks_" + currentUser + ".json";
+    }
+
     private static final Gson gson = new Gson();
 
     public static void saveTasks(List<Task> tasks) {
-        try (FileWriter writer = new FileWriter(FILE_PATH)) {
+        try (FileWriter writer = new FileWriter(getUserTaskFile())) {
             gson.toJson(tasks, writer);
         } catch (IOException e) {
             e.printStackTrace();
@@ -24,7 +33,7 @@ public class TaskStorage {
     }
 
     public static List<Task> loadTasks() {
-        try (FileReader reader = new FileReader(FILE_PATH)) {
+        try (FileReader reader = new FileReader(getUserTaskFile())) {
             Type type = new TypeToken<List<Task>>() {}.getType();
             return gson.fromJson(reader, type);
         } catch (Exception e) {
